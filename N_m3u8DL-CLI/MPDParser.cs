@@ -135,7 +135,16 @@ namespace N_m3u8DL_CLI
             XmlDocument mpdDoc = new XmlDocument();
             mpdDoc.LoadXml(mpdContent);
 
-            XmlNode xn = mpdDoc.LastChild;
+            XmlNode xn = null;
+            //Select MPD node
+            foreach (XmlNode node in mpdDoc.ChildNodes)
+            {
+                if (node.NodeType == XmlNodeType.Element && node.Name == "MPD")
+                {
+                    xn = node;
+                    break;
+                }
+            }
             var mediaPresentationDuration = ((XmlElement)xn).GetAttribute("mediaPresentationDuration");
             var ns = ((XmlElement)xn).GetAttribute("xmlns");
 
@@ -145,9 +154,11 @@ namespace N_m3u8DL_CLI
             TimeSpan ts = XmlConvert.ToTimeSpan(mediaPresentationDuration); //时长
 
             var formatList = new List<Dictionary<string, dynamic>>(); //存放所有音视频清晰度
+            var periodIndex = 0; //解决同一个period且同id导致被重复添加分片
 
             foreach (XmlElement period in xn.SelectNodes("ns:Period", nsMgr))
             {
+                periodIndex++;
                 var periodDuration = string.IsNullOrEmpty(period.GetAttribute("duration")) ? XmlConvert.ToTimeSpan(mediaPresentationDuration) : XmlConvert.ToTimeSpan(period.GetAttribute("duration"));
                 var periodMsInfo = ExtractMultisegmentInfo(period, nsMgr, new Dictionary<string, dynamic>()
                 {
@@ -224,6 +235,7 @@ namespace N_m3u8DL_CLI
                             var bandwidth = IntOrNull(GetAttribute("bandwidth"));
                             var f = new Dictionary<string, dynamic>
                             {
+                                ["PeriodIndex"] = periodIndex,
                                 ["ContentType"] = contentType,
                                 ["FormatId"] = representationId,
                                 ["ManifestUrl"] = mpdUrl,
@@ -448,7 +460,7 @@ namespace N_m3u8DL_CLI
                                 f["FragmentBaseUrl"] = baseUrl;
                                 if (representationMsInfo.ContainsKey("InitializationUrl"))
                                 {
-                                    f["InitializationUrl"] = representationMsInfo["InitializationUrl"];
+                                    f["InitializationUrl"] = CombineURL(baseUrl, representationMsInfo["InitializationUrl"]);
                                     if (f["InitializationUrl"].StartsWith("$$Range"))
                                     {
                                         f["InitializationUrl"] = CombineURL(baseUrl, f["InitializationUrl"]);
@@ -473,7 +485,8 @@ namespace N_m3u8DL_CLI
                             {
                                 for (int i = 0; i < formatList.Count; i++)
                                 {
-                                    if (formatList[i]["FormatId"] == f["FormatId"] && formatList[i]["Width"] == f["Width"] && formatList[i]["ContentType"] == f["ContentType"])
+                                    //参数相同但不在同一个Period才可以
+                                    if (formatList[i]["FormatId"] == f["FormatId"] && formatList[i]["Width"] == f["Width"] && formatList[i]["ContentType"] == f["ContentType"] && formatList[i]["PeriodIndex"] != f["PeriodIndex"]) 
                                     {
                                         formatList[i]["Fragments"].AddRange(f["Fragments"]);
                                         break;
@@ -510,7 +523,7 @@ namespace N_m3u8DL_CLI
             {
                 string Stringify(Dictionary<string, dynamic> f)
                 {
-                    var type = f["ContentType"] == "aduio" ? "Audio" : "Video";
+                    var type = f["ContentType"] == "audio" ? "Audio" : "Video";
                     var res = type == "Video" ? $"[{f["Width"]}x{f["Height"]}]" : "";
                     var id = $"[{f["FormatId"]}] ";
                     var tbr = $"[{((int)f["Tbr"]).ToString().PadLeft(4)} Kbps] ";
@@ -521,22 +534,23 @@ namespace N_m3u8DL_CLI
                     return $"{type} => {id}{tbr}{asr}{fps}{lang}{codecs}{res}";
                 }
 
-                var startCursorIndex = LOGGER.CursorIndex;
+                var startCursorIndex = Console.CursorTop;
+                var cursorIndex = startCursorIndex;
                 for (int i = 0; i < formatList.Count; i++)
                 {
                     Console.WriteLine("".PadRight(13) + $"[{i.ToString().PadLeft(2)}]. {Stringify(formatList[i])}");
-                    LOGGER.CursorIndex++;
+                    cursorIndex++;
                 }
                 LOGGER.PrintLine("Found Multiple Language Audio Tracks.\r\n" + "".PadRight(13) + "Please Select What You Want(Up to 1 Video and 1 Audio).");
                 Console.Write("".PadRight(13) + "Enter Numbers Separated By A Space: ");
                 var input = Console.ReadLine();
-                LOGGER.CursorIndex += 2;
-                for (int i = startCursorIndex; i < LOGGER.CursorIndex; i++)
+                cursorIndex += 2;
+                for (int i = startCursorIndex; i < cursorIndex; i++)
                 {
                     Console.SetCursorPosition(0, i);
                     Console.Write("".PadRight(300));
                 }
-                LOGGER.CursorIndex = startCursorIndex;
+                Console.SetCursorPosition(0, startCursorIndex);
                 if (!string.IsNullOrEmpty(input))
                 {
                     bestVideo = new Dictionary<string, dynamic>() { ["Tbr"] = 0 };

@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using BrotliSharpLib;
+using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -37,14 +38,8 @@ namespace N_m3u8DL_CLI
         static string nowDate = "20210325";
         public static void WriteInit()
         {
-            Console.Clear();
-            Console.SetCursorPosition(0, 0);
-            Console.BackgroundColor = ConsoleColor.Blue; //设置背景色
-            Console.ForegroundColor = ConsoleColor.White; //设置前景色，即字体颜色
-            Console.WriteLine($"N_m3u8DL-CLI v{nowVer} {nowDate}...");
-            Console.ResetColor(); //将控制台的前景色和背景色设为默认值
-            Console.WriteLine("Speed: waiting");
-            Console.WriteLine("Progress: waiting");
+            Console.WriteLine($"N_m3u8DL-CLI version {nowVer} 2018-2021");
+            Console.WriteLine($"  built date: {nowDate}");
             Console.WriteLine();
         }
 
@@ -59,8 +54,8 @@ namespace N_m3u8DL_CLI
                     Console.Title = string.Format(strings.newerVisionDetected, latestVer);
                     try
                     {
-                        //尝试下载新版本(去码云)
-                        string url = $"https://gitee.com/nilaoda/N_m3u8DL-CLI/raw/master/N_m3u8DL-CLI_v{latestVer}.exe";
+                        //尝试下载新版本
+                        string url = $"https://mirror.ghproxy.com/https://github.com/nilaoda/N_m3u8DL-CLI/releases/download/{latestVer}/N_m3u8DL-CLI_v{latestVer}.exe";
                         if (File.Exists(Path.Combine(Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName), $"N_m3u8DL-CLI_v{latestVer}.exe")))
                         {
                             Console.Title = string.Format(strings.newerVerisonDownloaded, latestVer);
@@ -180,6 +175,20 @@ namespace N_m3u8DL_CLI
                                 new System.IO.Compression.GZipStream(streamReceive, System.IO.Compression.CompressionMode.Decompress))
                             {
                                 using (StreamReader sr = new StreamReader(zipStream, Encoding.UTF8))
+                                {
+                                    htmlCode = sr.ReadToEnd();
+                                }
+                            }
+                        }
+                    }
+                    else if (webResponse.ContentEncoding != null
+                        && webResponse.ContentEncoding.ToLower() == "br") //如果使用了Brotli则先解压
+                    {
+                        using (Stream streamReceive = webResponse.GetResponseStream())
+                        {
+                            using (var bs = new BrotliStream(streamReceive, CompressionMode.Decompress))
+                            {
+                                using (StreamReader sr = new StreamReader(bs, Encoding.UTF8))
                                 {
                                     htmlCode = sr.ReadToEnd();
                                 }
@@ -697,27 +706,27 @@ namespace N_m3u8DL_CLI
             {
                 return;
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[118] && 130 == u[119])
+            else if (u.Length > 120 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[118] && 130 == u[119])
             {
                 u = u.Skip(120).ToArray();
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[6100] && 130 == u[6101])
+            else if (u.Length > 6102 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[6100] && 130 == u[6101])
             {
                 u = u.Skip(6102).ToArray();
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[67] && 130 == u[68])
+            else if (u.Length > 69 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[67] && 130 == u[68])
             {
                 u = u.Skip(69).ToArray();
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[769] && 130 == u[770])
+            else if (u.Length > 771 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[769] && 130 == u[770])
             {
                 u = u.Skip(771).ToArray();
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3])
+            else if (u.Length > 4 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3])
             {
                 //确定是PNG但是需要手动查询结尾标记 0x47 出现两次
                 int skip = 0;
-                for (int i = 4; i < u.Length - 188 * 2; i++)
+                for (int i = 4; i < u.Length - 188 * 2 - 4; i++)
                 {
                     if (u[i] == 0x47 && u[i + 188] == 0x47 && u[i + 188 + 188] == 0x47)
                     {

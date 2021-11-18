@@ -11,8 +11,6 @@ namespace N_m3u8DL_CLI
 {
     class LOGGER
     {
-        public static int CursorIndex = 5;
-        public static int FFmpegCorsorIndex = 5;
         public const int Default = 1;
         public const int Error = 2;
         public const int Warning = 3;
@@ -36,8 +34,13 @@ namespace N_m3u8DL_CLI
         {
             if (!Directory.Exists(Path.GetDirectoryName(LOGFILE)))//若文件夹不存在则新建文件夹   
                 Directory.CreateDirectory(Path.GetDirectoryName(LOGFILE)); //新建文件夹
-            if (File.Exists(LOGFILE))//若文件存在则删除
-                File.Delete(LOGFILE);
+            //若文件存在则加序号
+            int index = 1;
+            var fileName = Path.GetFileNameWithoutExtension(LOGFILE);
+            while (File.Exists(LOGFILE))
+            {
+                LOGFILE = Path.Combine(Path.GetDirectoryName(LOGFILE), $"{fileName}-{index++}.log");
+            }
             string file = LOGFILE;
             string now = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
             string init = "LOG " + DateTime.Now.ToString("yyyy/MM/dd") + "\r\n"
@@ -57,24 +60,8 @@ namespace N_m3u8DL_CLI
         //读写锁机制，当资源被占用，其他线程等待
         static ReaderWriterLockSlim LogWriteLock = new ReaderWriterLockSlim();
 
-        public static void PrintLine(string text, int printLevel = 1, int cursorIndex = 0)
+        public static void PrintLine(string text, int printLevel = 1)
         {
-            try
-            {
-                if (CursorIndex > 1000)
-                {
-                    Console.Clear();
-                    CursorIndex = 0;
-                }
-                if (cursorIndex == 0)
-                    Console.SetCursorPosition(0, CursorIndex++);
-                else
-                    Console.SetCursorPosition(0, cursorIndex);
-            }
-            catch (Exception)
-            {
-                ;
-            }
             switch (printLevel)
             {
                 case 0:

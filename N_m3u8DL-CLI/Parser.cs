@@ -102,8 +102,13 @@ namespace N_m3u8DL_CLI
 
 
             //获取m3u8内容
-            if (!LiveStream)
-                LOGGER.PrintLine(strings.downloadingM3u8, LOGGER.Warning);
+            //if (!LiveStream)
+            //    LOGGER.PrintLine(strings.downloadingM3u8, LOGGER.Warning);
+
+            if (M3u8Url.Contains(".cntv."))
+            {
+                M3u8Url = M3u8Url.Replace("/h5e/", "/");
+            }
 
             if (M3u8Url.StartsWith("http"))
             {
@@ -139,21 +144,27 @@ namespace N_m3u8DL_CLI
                 m3u8Content = DecodeImooc.DecodeM3u8(m3u8Content);
             }
 
-            if (M3u8Url.Contains("cntv.qcloudcdn.com"))
-            {
-                M3u8Url = M3u8Url.Replace("/h5e/", "/");
-            }
-
             if (m3u8Content.Contains("</MPD>") && m3u8Content.Contains("<MPD"))
             {
-                LOGGER.PrintLine(strings.startParsingMpd, LOGGER.Warning);
-                LOGGER.WriteLine(strings.startParsingMpd);
+                //LOGGER.PrintLine(strings.startParsingMpd, LOGGER.Warning);
+                //LOGGER.WriteLine(strings.startParsingMpd);
                 var mpdSavePath = Path.Combine(DownDir, "dash.mpd");
                 //输出mpd文件
                 File.WriteAllText(mpdSavePath, m3u8Content);
                 //分析mpd文件
                 M3u8Url = Global.Get302(M3u8Url, Headers);
                 var newUri = MPDParser.Parse(DownDir, M3u8Url, m3u8Content, BaseUrl);
+                M3u8Url = newUri;
+                m3u8Content = File.ReadAllText(new Uri(M3u8Url).LocalPath);
+            }
+
+            if (m3u8Content.StartsWith("{\"payload\""))
+            {
+                var iqJsonPath = Path.Combine(DownDir, "iq.json");
+                //输出mpd文件
+                File.WriteAllText(iqJsonPath, m3u8Content);
+                //分析json文件
+                var newUri = IqJsonParser.Parse(DownDir, m3u8Content);
                 M3u8Url = newUri;
                 m3u8Content = File.ReadAllText(new Uri(M3u8Url).LocalPath);
             }
@@ -182,10 +193,10 @@ namespace N_m3u8DL_CLI
             }
 
             //针对AppleTv修正
-            if (m3u8Content.Contains("#EXT-X-DISCONTINUITY") && m3u8Content.Contains("#EXT-X-MAP") && M3u8Url.Contains(".apple.com/"))
+            if (m3u8Content.Contains("#EXT-X-DISCONTINUITY") && m3u8Content.Contains("#EXT-X-MAP") && (M3u8Url.Contains(".apple.com/") || Regex.IsMatch(m3u8Content, "#EXT-X-MAP.*\\.apple\\.com/"))) 
             {
                 //只取加密部分即可
-                Regex ykmap = new Regex("(#EXT-X-KEY:[\\s\\S]*?)#EXT-X-DISCONTINUITY");
+                Regex ykmap = new Regex("(#EXT-X-KEY:[\\s\\S]*?)(#EXT-X-DISCONTINUITY|#EXT-X-ENDLIST)");
                 if (ykmap.IsMatch(m3u8Content))
                 {
                     m3u8Content = "#EXTM3U\r\n" + ykmap.Match(m3u8Content).Groups[1].Value + "\r\n#EXT-X-ENDLIST";
@@ -201,11 +212,11 @@ namespace N_m3u8DL_CLI
                     BaseUrl = GetBaseUrl(M3u8Url, Headers);
             }
 
-            if (!LiveStream)
-            {
-                LOGGER.WriteLine(strings.parsingM3u8);
-                LOGGER.PrintLine(strings.parsingM3u8);
-            }
+            //if (!LiveStream)
+            //{
+            //    LOGGER.WriteLine(strings.parsingM3u8);
+            //    LOGGER.PrintLine(strings.parsingM3u8);
+            //}
 
             if (!string.IsNullOrEmpty(KeyBase64))
             {
@@ -542,7 +553,7 @@ namespace N_m3u8DL_CLI
                         }
                         sb.Append("}");
                         extLists.Add(sb.ToString().Replace(",}", "}"));
-                        if (Convert.ToInt64(extList[0]) > bestBandwidth)
+                        if (Convert.ToInt64(extList[0]) >= bestBandwidth)
                         {
                             bestBandwidth = Convert.ToInt64(extList[0]);
                             bestUrl = listUrl;
@@ -606,23 +617,24 @@ namespace N_m3u8DL_CLI
                 //多种音频语言 让用户选择
                 else
                 {
-                    var startCursorIndex = LOGGER.CursorIndex;
+                    var startCursorIndex = Console.CursorTop;
+                    var cursorIndex = startCursorIndex;
                     LOGGER.PrintLine("Found Multiple Language Audio Tracks.", LOGGER.Warning);
                     for (int i = 0; i < MEDIA_AUDIO_GROUP[bestUrlAudio].Count; i++)
                     {
                         Console.WriteLine("".PadRight(13) + $"[{i.ToString().PadLeft(2)}]. {bestUrlAudio} => {MEDIA_AUDIO_GROUP[bestUrlAudio][i]}");
-                        LOGGER.CursorIndex++;
+                        cursorIndex++;
                     }
                     LOGGER.PrintLine("Please Select What You Want.(Up To 1 Track)");
                     Console.Write("".PadRight(13) + "Enter Number: ");
                     var input = Console.ReadLine();
-                    LOGGER.CursorIndex += 2;
-                    for (int i = startCursorIndex; i < LOGGER.CursorIndex; i++)
+                    cursorIndex += 2;
+                    for (int i = startCursorIndex; i < cursorIndex; i++)
                     {
                         Console.SetCursorPosition(0, i);
                         Console.Write("".PadRight(300));
                     }
-                    LOGGER.CursorIndex = startCursorIndex;
+                    Console.SetCursorPosition(0, startCursorIndex);
                     audioUrl = MEDIA_AUDIO_GROUP[bestUrlAudio][int.Parse(input)].Uri;
                 }
             }
@@ -635,23 +647,24 @@ namespace N_m3u8DL_CLI
                 //多种字幕语言 让用户选择
                 else
                 {
-                    var startCursorIndex = LOGGER.CursorIndex;
+                    var startCursorIndex = Console.CursorTop;
+                    var cursorIndex = startCursorIndex;
                     LOGGER.PrintLine("Found Multiple Language Subtitle Tracks.", LOGGER.Warning);
                     for (int i = 0; i < MEDIA_SUB_GROUP[bestUrlSub].Count; i++)
                     {
                         Console.WriteLine("".PadRight(13) + $"[{i.ToString().PadLeft(2)}]. {bestUrlSub} => {MEDIA_SUB_GROUP[bestUrlSub][i]}");
-                        LOGGER.CursorIndex++;
+                        cursorIndex++;
                     }
                     LOGGER.PrintLine("Please Select What You Want.(Up To 1 Track)");
                     Console.Write("".PadRight(13) + "Enter Number: ");
                     var input = Console.ReadLine();
-                    LOGGER.CursorIndex += 2;
-                    for (int i = startCursorIndex; i < LOGGER.CursorIndex; i++)
+                    cursorIndex += 2;
+                    for (int i = startCursorIndex; i < cursorIndex; i++)
                     {
                         Console.SetCursorPosition(0, i);
                         Console.Write("".PadRight(300));
                     }
-                    LOGGER.CursorIndex = startCursorIndex;
+                    Console.SetCursorPosition(0, startCursorIndex);
                     subUrl = MEDIA_SUB_GROUP[bestUrlSub][int.Parse(input)].Uri;
                 }
             }
@@ -661,10 +674,15 @@ namespace N_m3u8DL_CLI
                 jsonM3u8Info.Add("sub", subUrl);
             if (extMAP[0] != "")
             {
+                DownloadManager.HasExtMap = true;
                 if (extMAP[1] == "")
                     jsonM3u8Info.Add("extMAP", extMAP[0]);
                 else
                     jsonM3u8Info.Add("extMAP", extMAP[0] + "|" + extMAP[1]);
+            }
+            else
+            {
+                DownloadManager.HasExtMap = false;
             }
 
             //根据DurRange来生成分片Range

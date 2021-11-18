@@ -13,9 +13,13 @@
 
 
 # [ENGLISH VERSION](https://github.com/nilaoda/N_m3u8DL-CLI/blob/master/README_ENG.md)
+
+# 下载使用
+* 发行版: https://github.com/nilaoda/N_m3u8DL-CLI/releases
+* 自动构建版`(供测试)`: https://github.com/nilaoda/N_m3u8DL-CLI/actions
  
 # 关于开源
-本项目已与2019年10月9日开源，采用MIT许可证，各取所需。
+本项目已于2019年10月9日开源，采用MIT许可证，各取所需。
 
 # 关于跨平台
 搁置了
